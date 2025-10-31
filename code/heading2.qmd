@@ -89,14 +89,11 @@ if (idx %in% c(1, 2, 4, 5, 7)) {
   cat(strrep("=", 15), "Pairwise Comparisons for grp within each stim_frequency", strrep("=", 15), "\n")
   print(comp)
   
-  # png(filename = sprintf("comparison_%s.png", dm),
-  #     width = 6.5, height = 6.5, units = "in", res = 1200)
   plot <- plot_comparisons(model, newdata = newdata, re.form = NULL, vcov = TRUE,
                            variables = list(grp = "pairwise"), by = "stim_frequency") +
     labs(x = "Stimulus Frequency", y = "Marginal Effect (ChR2 - EYFP)") +
     theme_bw()
   print(plot)
-  # dev.off()
   
   # if (idx == 6) {
     plotData <- pred %>%
@@ -140,6 +137,11 @@ if (idx %in% c(1, 2, 4, 5, 7)) {
       theme(aspect.ratio = 1, legend.position = "bottom")
     
     print(plot)
+    
+    png(filename = sprintf("output/comparison_%s.png", sheet_name),
+        width = 6.5, height = 6.5, units = "in", res = 1200)
+    print(plot)
+    dev.off()
     
   # }
 }
