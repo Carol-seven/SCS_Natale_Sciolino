@@ -1,0 +1,17 @@
+# `r title_name`
+
+
+```{r results='asis'}
+for (modname in modnames) {
+  idx <- match(modname, modnames)
+  if (idx %in% c(1:4)) {
+    subtitle_name <- modname
+    cat(knitr::knit_child("code/heading2.qmd", quiet = TRUE))
+  } else {
+    for (site in sites) {
+      subtitle_name <- sprintf("%s (%s)", modname, site)
+      cat(knitr::knit_child("code/heading2.qmd", quiet = TRUE))
+    }
+  }
+}
+```

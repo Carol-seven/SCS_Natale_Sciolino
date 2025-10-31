@@ -1,0 +1,150 @@
+## `r subtitle_name`
+
+
+```{r}
+if (idx %in% c(1:4)) {
+  data <- df
+  sheet_name <- sprintf("%s_M%s", title_name, idx)
+} else {
+  data <- df %>%
+    filter(implant_sites == site)
+  sheet_name <- sprintf("%s_M%s_%s", title_name, idx, site)
+}
+
+if (idx == 1) {
+  model <- glmmTMB(
+    data[[dm]] ~ gender + grp + stim_frequency + implant_sites + (1|ms_number),
+    data = data, family = binomial())
+  ivs <- c("gender", "grp", "stim_frequency", "implant_sites")
+} else if (idx == 2) {
+  model <- glmmTMB(
+    data[[dm]] ~ grp + stim_frequency + implant_sites + (1|ms_number),
+    data = data, family = binomial())
+  ivs <- c("grp", "stim_frequency", "implant_sites")
+} else if (idx == 3) {
+  model <- glmmTMB(
+    data[[dm]] ~ grp * stim_frequency + implant_sites + (1|ms_number),
+    data = data, family = binomial())
+} else if (idx == 4) {
+  model <- glmmTMB(
+    data[[dm]] ~ gender + grp + stim_frequency + (1|ms_number),
+    data = data, family = binomial())
+  ivs <- c("gender", "grp", "stim_frequency")
+} else if (idx %in% c(5:7)) {
+  if (idx == 5) {
+    model <- glmmTMB(
+      data[[dm]] ~ grp + stim_frequency + (1|ms_number),
+      data = data, family = binomial())
+    ivs <- c("grp", "stim_frequency")
+  } else if (idx == 6) {
+    model <- glmmTMB(
+      data[[dm]] ~ grp * stim_frequency + (1|ms_number),
+      data = data, family = binomial())
+  } else if (idx == 7) {
+    model <- glmmTMB(
+      data[[dm]] ~ gender + grp + stim_frequency + (1|ms_number),
+      data = data, family = binomial())
+    ivs <- c("gender", "grp", "stim_frequency")
+  }
+}
+
+mod_summary <- summary(model)
+addWorksheet(wb_summary, sheet_name)
+writeData(wb_summary, sheet_name, mod_summary$coefficients$cond, rowNames = TRUE)
+saveWorkbook(wb_summary, "output/summary.xlsx", overwrite = TRUE)
+
+cat(strrep("-", 30), "Summary of Model", strrep("-", 30)); print(mod_summary)
+
+cat(strrep("-", 15), "Formatted Regression Table", strrep("-", 15)); tab_model(model)
+
+cat(strrep("-", 30), "Global Model Diagnostics", strrep("-", 30)); check_model(model)
+
+cat(strrep("-", 20), "Residual Diagnostics", strrep("-", 20)); check_residuals(model)
+```
+
+```{r fig.width = 4, fig.height = 3}
+if (idx %in% c(1, 2, 4, 5, 7)) {
+  for (iv in ivs) {
+    pred <- avg_predictions(model, re.form = NULL,
+                            variables = iv)
+    cat(strrep("=", 15), "Marginal Effects for", iv, strrep("=", 15), "\n")
+    print(pred)
+  }
+  comp <- avg_comparisons(model, re.form = NULL,
+                          variables = setNames(as.list(rep("pairwise", length(ivs))), ivs))
+  cat(strrep("=", 30), "Pairwise Comparisons", strrep("=", 30), "\n")
+  print(comp)
+} else {
+  newdata <- datagrid(model = model,
+                      grp = levels(data$grp),
+                      stim_frequency = levels(data$stim_frequency))
+  
+  pred <- avg_predictions(model, newdata = newdata, re.form = NULL,
+                          by = c("grp", "stim_frequency"))
+  cat(strrep("=", 15), "Marginal Effects for grp x stim_frequency", strrep("=", 15), "\n")
+  print(pred)
+  
+  comp <- avg_comparisons(model, newdata = newdata, re.form = NULL,
+                          variables = list(grp = "pairwise"), by = "stim_frequency")
+  cat(strrep("=", 15), "Pairwise Comparisons for grp within each stim_frequency", strrep("=", 15), "\n")
+  print(comp)
+  
+  # png(filename = sprintf("comparison_%s.png", dm),
+  #     width = 6.5, height = 6.5, units = "in", res = 1200)
+  plot <- plot_comparisons(model, newdata = newdata, re.form = NULL, vcov = TRUE,
+                           variables = list(grp = "pairwise"), by = "stim_frequency") +
+    labs(x = "Stimulus Frequency", y = "Marginal Effect (ChR2 - EYFP)") +
+    theme_bw()
+  print(plot)
+  # dev.off()
+  
+  # if (idx == 6) {
+    plotData <- pred %>%
+      select(grp, stim_frequency, p.value) %>%
+      left_join(data %>%
+                  group_by(grp, stim_frequency) %>%
+                  summarise(
+                    N = n(), ## total number of observations for grp x stim_frequency
+                    n = sum(.data[[dm]]), ## number of observations with binary measure = 1
+                    prop = n / N * 100, ## proportion
+                    .groups = "drop"),
+                by = c("grp", "stim_frequency")) %>%
+      mutate(x = as.numeric(stim_frequency))
+    
+    ann <- plotData %>%
+      group_by(stim_frequency) %>%
+      summarise(y_top = max(prop, na.rm = TRUE), .groups = "drop") %>%
+      left_join(comp %>% select(stim_frequency, p.value), by = "stim_frequency") %>%
+      mutate(annotations = p_to_stars(p.value),
+             x = as.numeric(stim_frequency),
+             xmin = x - 0.25,
+             xmax = x + 0.25,
+             y_position = y_top + 5)
+    
+    plot <- ggplot(plotData, aes(x = x, y = prop, fill = grp, color = grp)) +
+      coord_cartesian(ylim = c(0, max(ann$y_position, na.rm = TRUE) * 1.1)) +
+      geom_col(position = position_dodge(0.8), width = 0.6, linewidth = 1) +
+      geom_signif(data = ann,
+                  aes(xmin = xmin, xmax = xmax, y_position = y_position,
+                      annotations = annotations, group = x),
+                  inherit.aes = FALSE, manual = TRUE,
+                  textsize = 4, tip_length = 0.01) +
+      labs(x = "Photostimulation Frequency",
+           y = paste(title_name, "(%)")) +
+      scale_color_manual(name = "Group", values = c("ChR2" = "#0698ff", "EYFP" = "#6f6f6f")) +
+      scale_fill_manual(name = "Group", values = c("ChR2" = "#79e9fb", "EYFP" = "#dbdbdb")) +
+      scale_x_continuous(breaks = seq_along(levels(plotData$stim_frequency)),
+                         labels = levels(plotData$stim_frequency)) +
+      scale_y_continuous(expand = c(0, 0)) +
+      theme_classic() +
+      theme(aspect.ratio = 1, legend.position = "bottom")
+    
+    print(plot)
+    
+  # }
+}
+
+addWorksheet(wb_contrast, sheet_name)
+writeData(wb_contrast, sheet_name, comp)
+saveWorkbook(wb_contrast, "output/contrast.xlsx", overwrite = TRUE)
+```
