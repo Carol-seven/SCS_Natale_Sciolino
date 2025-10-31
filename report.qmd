@@ -1,5 +1,5 @@
 ---
-title: "Report 1.0"
+title: "Report 2.0"
 author: "Shiying Xiao"
 date: "`r Sys.Date()`"
 format:
@@ -182,7 +182,7 @@ gender + grp + stim_frequency + (1|ms_number)
 
 
 ```{r fig.width = 7, fig.height = 5}
-df <- read_xlsx("data/Cricket Hunting Task Data 10-10-2025.xlsx") %>%
+df <- read_xlsx("data/Cricket Hunting Task Data 10-31-2025 - binary.xlsx") %>%
   clean_names() %>%
   rename(grp = group) %>%
   mutate(gender = factor(gender, levels = c("M", "F")), ## M baseline
