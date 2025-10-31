@@ -138,10 +138,8 @@ if (idx %in% c(1, 2, 4, 5, 7)) {
     
     print(plot)
     
-    png(filename = sprintf("output/comparison_%s.png", sheet_name),
-        width = 6.5, height = 6.5, units = "in", res = 1200)
-    print(plot)
-    dev.off()
+    ggsave(filename = sprintf("output/comparison_%s.png", sheet_name),
+           plot = plot, width = 6.5, height = 6.5, units = "in", dpi = 1200)
     
   # }
 }
